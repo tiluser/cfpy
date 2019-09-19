@@ -10,7 +10,7 @@
 import datetime
 import math
 import re
-from pymsgbox import *
+# from pymsgbox import *
 import copy
 
 class Modules:
@@ -258,11 +258,12 @@ class CorePrims:
     def doHello(self, gsp):
         print("Hello world")
     
-    # ( -- ) Pops up an alert saying Tulip
+    # ( -- ) Either prints Tulip or pops up a message
     def doTulip(self, gsp):
-        alert(text="Tulip", title='Creole Forth', 
-        button='OK')
-        # print("Tulip")
+        # uncomment the code to import pymsgbox to do the alert 
+        # alert(text="Tulip", title='Creole Forth', 
+        # button='OK')
+        print("Tulip")
     
     # ( msg -- ) Pops up an alert saying the message
     def doMsgBox(self, gsp):
@@ -1014,7 +1015,7 @@ cfb1.buildPrimitive("__#EOL#__", cfb1.Modules.CorePrims.doNOP, "CorePrims.doNOP"
 
 # dialogs and help
 cfb1.buildPrimitive("HELLO", cfb1.Modules.CorePrims.doHello, "CorePrims.doHello", "FORTH", "COMPINPF","( -- ) prints out Hello World")
-cfb1.buildPrimitive("TULIP", cfb1.Modules.CorePrims.doTulip, "CorePrims.doTulip", "FORTH", "COMPINPF","( -- ) Pops up an alert saying Tulip")
+cfb1.buildPrimitive("TULIP", cfb1.Modules.CorePrims.doTulip, "CorePrims.doTulip", "FORTH", "COMPINPF","( -- ) Either prints Tulip or pops up a message")
 cfb1.buildPrimitive("MSGBOX", cfb1.Modules.CorePrims.doMsgBox, "CorePrims.doMsgBox", "FORTH", "COMPINPF","( msg -- ) Pops up an alert saying the message")
 
 cfb1.buildPrimitive("EVAL", cfb1.Modules.CorePrims.doEval, "CorePrims.doEval", "FORTH", "COMPINPF","( code -- ) Evaluates raw JavaScript code - only allows alerts")
