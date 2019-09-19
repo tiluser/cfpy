@@ -4,7 +4,7 @@ Creole Forth for Python
 Intro
 -----
 
-This is a Forth-like scripting language built in Python and is preceded by similar languages that were built in
+This is a Forth-like scripting language built in Python 3 and is preceded by similar languages that were built in
 Delphi/Lazarus, Excel VBA, and JavaScript.  It can be used either standalone or as a DSL embedded as part of a
 larger application. 
 
