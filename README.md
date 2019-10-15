@@ -35,6 +35,6 @@ Finding the contents of the dictionary
 
 Compiling and executing a high-level definition
 -----------------------------------------------
-1. Run python runcfypscr.py script2.f. This defines and executes the high-level definition TEST1.
+1. Run python runcfypscr.py script3.f. This defines and executes the high-level definition TEST1.
    It uses IF-ELSE-THEN branching to either run the HELLO primitive or add and print the sum of 
    3 and 4. 
