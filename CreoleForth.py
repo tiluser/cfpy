@@ -330,8 +330,14 @@ class Interpreter:
     
     # Looks up the word based on its list index and executes whatever is in its code field
     def doInner(self, gsp):
-        gsp.cfb.Address[gsp.InnerPtr].CodeField(gsp)
-    
+        try:
+            gsp.cfb.Address[gsp.InnerPtr].CodeField(gsp)
+        except IndexError:
+            print("Error: Stack underflow")
+            gsp.cleanFields()
+        except:
+            print("Unknown error")
+                
     # Run-time code for colon definitions
     def doColon(self, gsp):
         currWord = gsp.cfb.Address[gsp.InnerPtr]
