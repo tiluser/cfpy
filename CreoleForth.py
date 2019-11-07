@@ -159,7 +159,7 @@ class CorePrims:
         val1 = gsp.Scratch
         product = float(val1) * float(val2)
         if product == int(product):
-            produce = int(product)
+            product = int(product)
         gsp.Scratch = product     
         gsp.push(gsp.DataStack)  
     
