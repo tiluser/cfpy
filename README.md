@@ -38,3 +38,10 @@ Compiling and executing a high-level definition
 1. Run python runcfypscr.py script3.f. This defines and executes the high-level definition TEST1.
    It uses IF-ELSE-THEN branching to either run the HELLO primitive or add and print the sum of 
    3 and 4. 
+
+Application-specific definitions
+--------------------------------
+1. Define the primitives in AppSpec.py.
+2. Build the primitives with the cfb1.buildPrimitive method.
+3. Build high-level definitions with the cfb1.buildHighLevel method.
+4. Run runcfypscr.py test.f to run the sample testing definition in the APPSPEC vocabulary. 

@@ -1,0 +1,2 @@
+// Test AppSpec vocabulary
+TEST

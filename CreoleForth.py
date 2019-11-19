@@ -957,6 +957,8 @@ class LogicOps:
             gsp.DataStack.append(-1)
         else:
             gsp.DataStack.append(0)
+
+from AppSpec import *
    
 class CreoleWord:
     def __init__(self, NameField, CodeField, CodeFieldStr, Vocabulary, CompileActionField, HelpField,PrevRowLocField, RowLocField, LinkField, IndexField, ParamField, DataField):
@@ -1001,7 +1003,7 @@ coreprims = CorePrims()
 interpreter = Interpreter()
 compiler = Compiler()
 logicops = LogicOps()
-appspec = None
+appspec = AppSpec()
 modules = Modules(coreprims, interpreter, compiler, logicops, appspec)
 cfb1 = CreoleForthBundle()
 cfb1.Modules = modules
@@ -1124,3 +1126,4 @@ gsp.DataStack = []
 #cp = CorePrims()
 #interpreter = Interpreter()
 gsp.CurrentVocab = "APPSPEC"
+from AppSpecBuildDefs import *
