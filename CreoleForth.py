@@ -40,6 +40,7 @@ class BasicForthConstants:
 class GlobalSimpleProps:
     def __init__(self, cfb):
         self.cfb = CreoleForthBundle() 
+        self.CurrWord = None
         self.Scratch = None
         self.DataStack = []
         self.ReturnStack = []
@@ -50,10 +51,9 @@ class GlobalSimpleProps:
         self.ParsedInput = []
         self.loopLabels = ["I", "J", "K"]
         self.LoopLabelPtr = 0
-        self.LoopCurrIndexes = [0,0,0]
         self.LoopCurrIndexes = [0, 0, 0]
-        self.OuterPtr = 0
-        self.InnerPtr = 0
+        self.ParsedInputPtr = 0
+        self.ExecPtr = 0
         self.ParamFieldPtr = 0
         self.InputArea = ""
         self.OutputAra = ""
@@ -79,14 +79,16 @@ class GlobalSimpleProps:
 
     def cleanFields(self):
         self.Scratch = None
+        self.CurrWord = None
+        self.ParamField = []
         self.DataStack = []
         self.ReturnStack = []
         self.PADarea = []
         self.ParsedInput = []
         self.LoopLabelPtr = 0
         self.LoopCurrIndexes = [0, 0, 0]
-        self.OuterPtr = 0
-        self.InnerPtr = 0
+        self.ParsedInputPtr = 0
+        self.ExecPtr = 0
         self.ParamFieldPtr = 0
         self.InputArea = ""
         self.OutputArea = ""
@@ -97,8 +99,8 @@ class GlobalSimpleProps:
 	
 # These objects are to be stored on the return stack
 class ReturnLoc:
-    def __init__(self, dictAddr, pfAddr):	
-        self.DictAddr = dictAddr
+    def __init__(self, currWord, pfAddr):	
+        self.CurrWord = currWord
         self.ParamFieldAddr = pfAddr
 
 class LoopInfo:
@@ -268,8 +270,8 @@ class CorePrims:
     # ( msg -- ) Pops up an alert saying the message
     def doMsgBox(self, gsp):
         msg = gsp.DataStack.pop()
-        alert(text=str(msg), title='Creole Forth', 
-        button='OK')
+        # alert(text=str(msg), title='Creole Forth', 
+        # button='OK')
 
     # ( code -- ) Evaluates raw Python code
     def doEval(self, gsp):
@@ -329,28 +331,31 @@ class Interpreter:
         gsp.ParsedInput = re.split(r'\s+', codeLine.strip())
     
     # Looks up the word based on its list index and executes whatever is in its code field
-    def doInner(self, gsp):
+    def doRunWord(self, gsp):
         try:
-            gsp.cfb.Address[gsp.InnerPtr].CodeField(gsp)
+            gsp.CurrWord = gsp.cfb.Address[gsp.ExecPtr]
+            gsp.CurrWord.CodeField(gsp)
         except IndexError:
             print("Error: Stack underflow")
             gsp.cleanFields()
         except:
             print("Unknown error")
-                
+
     # Run-time code for colon definitions
     def doColon(self, gsp):
-        currWord = gsp.cfb.Address[gsp.InnerPtr]
-        paramField = currWord.ParamField
+        gsp.ParamFieldPtr = gsp.CurrWord.ParamFieldStart
+        paramField = gsp.CurrWord.ParamField
         while (gsp.ParamFieldPtr < len(paramField)):
             addrInPF = paramField[gsp.ParamFieldPtr]
+            currContextWord = gsp.CurrWord
+            gsp.CurrWord = gsp.cfb.Address[addrInPF]
             codeField = gsp.cfb.Address[addrInPF].CodeField
             gsp.ParamFieldPtr += 1
-            rLoc = ReturnLoc(gsp.InnerPtr, gsp.ParamFieldPtr)
+            rLoc = ReturnLoc(currContextWord, gsp.ParamFieldPtr)
             gsp.ReturnStack.append(rLoc)
             codeField(gsp)
             rLoc = gsp.ReturnStack.pop()
-            gsp.InnerPtr = rLoc.DictAddr
+            gsp.CurrWord = rLoc.CurrWord
             gsp.ParamFieldPtr = rLoc.ParamFieldAddr
     
     # ( -- ) Empties the vocabulary stack, then puts ONLY on it
@@ -371,26 +376,26 @@ class Interpreter:
         rawWord = ""
         fqWord = ""
         isFound = False
-        gsp.OuterPtr = 0
-        gsp.InnerPtr = 0
+        gsp.ParsedInputPtr = 0
+        gsp.ExecPtr = 0
         gsp.ParamFieldPtr = 0
 
-        while (gsp.OuterPtr < len(gsp.ParsedInput)):
+        while (gsp.ParsedInputPtr < len(gsp.ParsedInput)):
             if (gsp.pause == False):
-                rawWord = gsp.ParsedInput[gsp.OuterPtr]
+                rawWord = gsp.ParsedInput[gsp.ParsedInputPtr]
                 searchVocabPtr = len(gsp.VocabStack) - 1
                 while (searchVocabPtr >= 0):
                     fqWord = rawWord.upper() + "." + gsp.VocabStack[searchVocabPtr]
                     if (fqWord in gsp.cfb.Dict):
-                        gsp.InnerPtr = gsp.cfb.Dict[fqWord].IndexField
-                        self.doInner(gsp)
+                        gsp.ExecPtr = gsp.cfb.Dict[fqWord].IndexField
+                        self.doRunWord(gsp)
                         isFound = True
                         break
                     else:
                         searchVocabPtr -= 1
             if (isFound == False):
                 gsp.DataStack.append(rawWord)
-            gsp.OuterPtr += 1
+            gsp.ParsedInputPtr += 1
             isFound = False
         gsp.PADarea = []
 
@@ -412,24 +417,24 @@ class Compiler:
     # Example : comment handling - the pointer is moved past the comments
     # ( -- ) Single-line comment handling
     def doSingleLineCmts(self, gsp):
-        while (gsp.ParsedInput[gsp.OuterPtr].find("__#EOL#__") == -1):
-            gsp.OuterPtr += 1
+        while (gsp.ParsedInput[gsp.ParsedInputPtr].find("__#EOL#__") == -1):
+            gsp.ParsedInputPtr += 1
     
     # ( -- ) Multiline comment handling
     def doParenCmts(self, gsp):
-        while (gsp.ParsedInput[gsp.OuterPtr].find(")") == -1):
-            gsp.OuterPtr += 1
+        while (gsp.ParsedInput[gsp.ParsedInputPtr].find(")") == -1):
+            gsp.ParsedInputPtr += 1
     
     # ( -- list ) List compiler
     def compileList(self, gsp):
         gsp.CompiledList = []
-        gsp.OuterPtr += 1
+        gsp.ParsedInputPtr += 1
         
-        isFound = re.search(gsp.ParsedInput[gsp.OuterPtr],'\}')
+        isFound = re.search(gsp.ParsedInput[gsp.ParsedInputPtr],'\}')
         while (isFound == None):
-            gsp.CompiledList.append(gsp.ParsedInput[gsp.OuterPtr])
-            gsp.OuterPtr += 1
-            isFound = re.search(gsp.ParsedInput[gsp.OuterPtr],'\}')
+            gsp.CompiledList.append(gsp.ParsedInput[gsp.ParsedInputPtr])
+            gsp.ParsedInputPtr += 1
+            isFound = re.search(gsp.ParsedInput[gsp.ParsedInputPtr],'\}')
 
         joinedList = " ".join(gsp.CompiledList)
         gsp.DataStack.append(joinedList)
@@ -437,7 +442,7 @@ class Compiler:
     # ( address -- ) Executes the word corresponding to the address on the stack
     def doExecute(self, gsp):
         address = int(gsp.DataStack.pop())
-        gsp.InnerPtr = address
+        gsp.ExecPtr = address
         gsp.cfb.Address[address].CodeField(gsp)
 
     # ( -- location ) Returns address of the next available dictionary location
@@ -447,13 +452,13 @@ class Compiler:
     
     # Used internally by doCreate - is not compiled into the dictionary
     def doMyAddress(self, gsp):
-        cw = gsp.cfb.Address[gsp.InnerPtr]
+        cw = gsp.cfb.Address[gsp.ExecPtr]
         gsp.DataStack.append(cw.IndexField)
     
     # CREATE <name>. Adds a named entry into the dictionary
     def doCreate(self, gsp):
         hereLoc = len(gsp.cfb.Address)
-        name = gsp.ParsedInput[gsp.OuterPtr + 1]
+        name = gsp.ParsedInput[gsp.ParsedInputPtr + 1]
         params = []
         data = []
         help = "TODO: "
@@ -462,12 +467,12 @@ class Compiler:
         fqName = name + "." + gsp.CurrentVocab
         gsp.cfb.Dict[fqName] = cw
         gsp.cfb.Address.append(gsp.cfb.Dict[fqName])
-        gsp.OuterPtr += 2
+        gsp.ParsedInputPtr += 2
         
     # ( -- ) Starts compilation of a colon definition
     def compileColon(self, gsp):
         hereLoc = len(gsp.cfb.Address)
-        name = gsp.ParsedInput[gsp.OuterPtr + 1]
+        name = gsp.ParsedInput[gsp.ParsedInputPtr + 1]
         params = []
         data = []
         help = "TODO: "
@@ -503,11 +508,11 @@ class Compiler:
         gsp.cfb.Dict[fqNameSmudged] = cw
         gsp.cfb.Address.append(gsp.cfb.Dict[fqNameSmudged]) 
         
-        gsp.OuterPtr += 2
+        gsp.ParsedInputPtr += 2
         # Parameter field contents are set up in the PAD area. Each word is looked up one at a time in the dictionary, and its name, address, and
         # compilation action are placed in the CompileInfo triplet.
-        while (gsp.OuterPtr < len(gsp.ParsedInput) and gsp.VocabStack[len(gsp.VocabStack) - 1] == gsp.BFC.ImmediateVocab and gsp.ParsedInput[gsp.OuterPtr] != ";"):
-            rawWord = gsp.ParsedInput[gsp.OuterPtr]
+        while (gsp.ParsedInputPtr < len(gsp.ParsedInput) and gsp.VocabStack[len(gsp.VocabStack) - 1] == gsp.BFC.ImmediateVocab and gsp.ParsedInput[gsp.ParsedInputPtr] != ";"):
+            rawWord = gsp.ParsedInput[gsp.ParsedInputPtr]
             searchVocabPtr = len(gsp.VocabStack) - 1     
             isFound = False
             while (searchVocabPtr >= 0):
@@ -530,7 +535,7 @@ class Compiler:
             if (isFound == False):
                 compInfo = CompileInfo(rawWord, rawWord, gsp.BFC.CompLitAction)
                 gsp.PADarea.append(compInfo)
-            gsp.OuterPtr += 1
+            gsp.ParsedInputPtr += 1
         
         # 1. Builds the definition in the parameter field from the PAD area. Very simple; the address of each word appears before its associated
         #    compilation action. Most of the time, it will be COMPINPF, which will simply compile the word into the parameter field (it's actually
@@ -560,6 +565,7 @@ class Compiler:
         gspComp.cfb.Modules.Interpreter.doOuter(gspComp)
         
         cw = gspComp.cfb.Address[hereLoc]
+        cw.ParamFieldStart = 0
         gsp.cfb.Dict[fqName] = cw
 
         # remove the smudged dictionary entry
@@ -590,15 +596,13 @@ class Compiler:
             newCreoleWord.ParamField.append(litVal)
         gsp.ParamFieldPtr = len(newCreoleWord.ParamField) - 1
     
-    # ( -- lit ) Run-time code that pushes a literal onto the stack
+        # ( -- lit ) Run-time code that pushes a literal onto the stack
     def doLiteral(self, gsp):
-        currWord = gsp.cfb.Address[gsp.InnerPtr]
-        paramField = currWord.ParamField
         rLoc = gsp.ReturnStack.pop()
-        litVal = paramField[gsp.ParamFieldPtr]
+        paramField = rLoc.CurrWord.ParamField
+        litVal = paramField[rLoc.ParamFieldAddr]
         gsp.DataStack.append(litVal)
         rLoc.ParamFieldAddr += 1
-        gsp.ParamFieldPtr = rLoc.ParamFieldAddr
         gsp.ReturnStack.append(rLoc)
 
     # ( addr -- val ) Fetches the value in the param field  at addr
@@ -676,7 +680,7 @@ class Compiler:
 
     # ( flag -- ) Run-time code for IF
     def do0Branch(self, gsp):
-        currWord = gsp.cfb.Address[gsp.InnerPtr]
+        currWord = gsp.cfb.Address[gsp.ExecPtr]
         paramField = currWord.ParamField
         rLoc = gsp.ReturnStack.pop()
         jumpAddr = paramField[rLoc.ParamFieldAddr]
@@ -749,7 +753,7 @@ class Compiler:
     #  ( inc -- ) Loops back to doDo until the start >= the end and increments with inc
     def doPlusLoop(self, gsp):
         incVal = int(gsp.DataStack.pop())
-        currWord = gsp.cfb.Address[gsp.InnerPtr]
+        currWord = gsp.cfb.Address[gsp.ExecPtr]
         paramField = currWord.ParamField
         rLoc = gsp.ReturnStack.pop()
         li = gsp.ReturnStack.pop()
@@ -802,28 +806,13 @@ class Compiler:
     
     # ( address -- ) Run-time code for DOES>
     def doDoes(self, gsp):
-        currWord = gsp.cfb.Address[gsp.InnerPtr]
-        codeFieldStr = currWord.CodeFieldStr
-        
-        # DOES> has to react differently depending on whether it's inside a colon
-        # definition or not
-        if (codeFieldStr == "doDoes"):
-            execToken = currWord.IndexField
-            # print("Direct execution of doDoes")
-            gsp.ParamFieldPtr = currWord.ParamFieldStart
-            gsp.DataStack.append(execToken)
-            gsp.cfb.Modules.Interpreter.doColon(gsp)
-        else:
-            execToken = currWord.ParamField[gsp.ParamFieldPtr - 1]
-            print(gsp.ParamFieldPtr)
-            # print("Execution token is " + str(execToken))
-            gsp.DataStack.append(execToken)
-            gsp.cfb.Modules.Compiler.doExecute(gsp)
-    
+        gsp.DataStack.append(gsp.CurrWord.IndexField)
+        gsp.cfb.Modules.Interpreter.doColon(gsp)
+   
     # DOES> <list of runtime actions>. When defining word is created, copies code following it into the child definition
     def compileDoes(self, gsp):
         rLoc = gsp.ReturnStack.pop()
-        parentRow = rLoc.DictAddr
+        parentRow = rLoc.CurrWord.IndexField
         newRow = len(gsp.cfb.Address) - 1
         parentCreoleWord = gsp.cfb.Address[parentRow]
         childCreoleWord = gsp.cfb.Address[newRow]
@@ -831,7 +820,7 @@ class Compiler:
         doesAddr = gsp.cfb.Dict["DOES>.FORTH"].IndexField
         i = 0
         childCreoleWord.CodeField = gsp.cfb.Modules.Compiler.doDoes
-        childCreoleWord.CodeFieldStr = "doDoes"
+        childCreoleWord.CodeFieldStr = "Compiler.doDoes"
         # Find the location of the does address in the parent definition
         while (i < len(parentCreoleWord.ParamField)):
             if (parentCreoleWord.ParamField[i] == doesAddr):
@@ -857,7 +846,7 @@ class Compiler:
 
      # ( -- ) Jumps unconditionally to the parameter field location next to it and is compiled by ELSE   
     def doJump(self, gsp):
-        currWord = gsp.cfb.Address[gsp.InnerPtr]
+        currWord = gsp.cfb.Address[gsp.ExecPtr]
         paramField = currWord.ParamField
         jumpAddr = paramField[gsp.ParamFieldPtr + 1]
         rLoc = gsp.ReturnStack.pop()
@@ -953,10 +942,10 @@ class LogicOps:
     def doXor(self, gsp):
         val1 = gsp.DataStack.pop()
         val2 = gsp.DataStack.pop()
-        if (int(val1) != 0 or int(val2) != 0) and not (int(val1) == 0 and int(val2) == 0):
-            gsp.DataStack.append(-1)
-        else:
-            gsp.DataStack.append(0)
+        #     if (int(val1) != 0 or int(val2) != 0) and not (int(val1) == 0 and int(val2) == 0):
+        #        gsp.DataStack.append(-1)
+        #else:
+        #    gsp.DataStack.append(0)
 
 from AppSpec import *
    
@@ -976,6 +965,7 @@ class CreoleWord:
         self.ParamField = ParamField
         self.DataField = DataField
         self.ParamFieldStart = 0
+        self.ParamFieldStartFrom = 0
 
 def buildPrimitive(self, name, cf, cfs, vocab, compAction, help):
     params = []
@@ -1119,7 +1109,6 @@ cfb1.buildHighLevel(gsp,": TESTBU BEGIN 1 + DUP 10 TULIP > UNTIL . ;", "Testing 
 cfb1.buildHighLevel(gsp,": TDL DO HELLO LOOP ;", "Testing DO LOOP")
 cfb1.buildHighLevel(gsp,": CONSTANT CREATE , DOES> @ ;", "The quintessential defining word")
 cfb1.buildHighLevel(gsp,": H3 HELLO HELLO HELLO ;", "3 hellos")
-
 
 gsp.DataStack = []
 
